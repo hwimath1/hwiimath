@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>비율이 사용되는 경우</title>
+  <!-- MathJax 로드 -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 800px;
+      margin: auto;
+      padding: 1em;
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    .hidden {
+      display: none;
+    }
+    .energy-bar {
+      width: 300px;
+      height: 20px;
+      background-color: #ccc;
+      margin: 10px 0;
+      position: relative;
+    }
+    .energy-bar-fill {
+      width: 100%;
+      height: 100%;
+      background-color: #f56c6c;
+      transition: width 0.2s;
+    }
+    #timer, #game-timer {
+      font-weight: bold; 
+      color: #d9534f;
+    }
+    .btn {
+      padding: 10px 15px;
+      background-color: #5bc0de;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+      margin: 5px;
+    }
+    .btn:hover {
+      opacity: 0.8;
+    }
+    .answer-option {
+      margin: 0.5em 0;
+    }
+    #response {
+      white-space: pre-wrap;
+      background: #f3f3f3;
+      padding: 1em;
+      margin-top: 1em;
+    }
+    .correct-answer {
+      color: green; 
+      font-weight: bold;
+    }
+    .wrong-answer {
+      color: red; 
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+<h1>비율이 사용되는 경우</h1>
+
+<div id="start-screen">
+  <h2>이름을 입력해주세요</h2>
+  <input type="text" id="userName" placeholder="이름">
+  <h2>난이도를 선택해주세요</h2>
+  <button class="btn" onclick="startGame('top')">최상</button>
+  <button class="btn" onclick="startGame('high')">상</button>
+  <button class="btn" onclick="startGame('mid')">중</button>
+  <button class="btn" onclick="startGame('low')">하</button>
+</div>
+
+<div id="quiz-screen" class="hidden">
+  <div>
+    전체 진행 시간: <span id="game-timer">0</span>초
+    <br>남은 기회: <span id="lives">3</span>
+    <br>점수: <span id="score">0</span>
+  </div>
+  <hr>
+  <div id="energy-bar-container" class="hidden">
+    <div class="energy-bar">
+      <div class="energy-bar-fill" id="energy-fill"></div>
+    </div>
+    남은 시간(바): <span id="timer">20</span>
+  </div>
+
+  <div id="question-container"></div>
+  <div id="options-container"></div>
+  <div id="feedback"></div>
+  <button class="btn" onclick="submitAnswer()">답안 제출</button>
+</div>
+
+<div id="end-screen" class="hidden">
+  <h2 id="end-title"></h2>
+  <p>최종 점수: <span id="final-score"></span></p>
+  <p>총 소요 시간: <span id="final-time"></span>초</p>
+  <button class="btn" onclick="sendScore()">점수 전송</button>
+  <div id="response"></div>
+</div>
+
+<script>
+// ============ 문제 데이터 (52개) ============
+// 계산 과정을 노출하지 않도록, '조건'에서 "=xx" 형태나 직접 분수(예: 500/5)를 제거했습니다.
+// 정답, 해설은 그대로이지만, 문제 문구에서는 결과값을 밝히지 않습니다.
+
+let questionsData = [
+  // ========== (1) 소금물 문제 (4~10), 총 7문제 ==========
+  {
+    q: `조건: 소금 35g, 소금물 140g.\n문제: 소금물에 대한 소금의 비율(소수)은?`,
+    options: ['0.25','0.30','0.20','0.15'],
+    answer: 0,
+    ex: '계산: 35 ÷ 140 = 0.25'
+  },
+  {
+    q: `조건: 소금 15g, 소금물 50g.\n문제: 소금물에 대한 소금의 비율(소수)은?`,
+    options: ['0.25','0.30','0.20','0.15'],
+    answer: 1,
+    ex: '계산: 15 ÷ 50 = 0.3'
+  },
+  {
+    q: `조건: 소금 18g, 소금물 60g.\n문제: 소금물에 대한 소금의 비율(소수)은?`,
+    options: ['0.3','0.2','0.25','0.15'],
+    answer: 0,
+    ex: '계산: 18 ÷ 60 = 0.3'
+  },
+  {
+    q: `조건: 소금 25g, 소금물 100g.\n문제: 소금물에 대한 소금의 비율(소수)은?`,
+    options: ['0.25','0.15','0.30','0.20'],
+    answer: 0,
+    ex: '계산: 25 ÷ 100 = 0.25'
+  },
+  {
+    q: `조건: 소금 21g, 소금물 70g.\n문제: 소금물에 대한 소금의 비율(소수)은?`,
+    options: ['0.2','0.4','0.25','0.3'],
+    answer: 3,
+    ex: '계산: 21 ÷ 70 = 0.3'
+  },
+  {
+    q: `조건: 소금 40g, 소금물 100g.\n문제: 소금물에 대한 소금의 비율(소수)은?`,
+    options: ['0.4','0.25','0.2','0.15'],
+    answer: 0,
+    ex: '계산: 40 ÷ 100 = 0.4'
+  },
+  {
+    q: `조건: 소금 16g, 소금물 80g.\n문제: 소금물에 대한 소금의 비율(소수)은?`,
+    options: ['0.25','0.2','0.3','0.15'],
+    answer: 1,
+    ex: '계산: 16 ÷ 80 = 0.2'
+  },
+
+  // ========== (2) 자동차 거리/시간 문제, 5문제 ==========
+  {
+    q: `조건: 자동차가 400km를 가는 데 5시간 걸림.\n문제: 걸린 시간(5시간)에 대한 간 거리(400km)의 비율(정수)은?`,
+    options: ['70','80','90','100'],
+    answer: 1,
+    ex: '계산: 400 ÷ 5 = 80'
+  },
+  {
+    q: `조건: 자동차가 270km를 가는 데 3시간 걸림.\n문제: 걸린 시간(3시간)에 대한 간 거리(270km)의 비율(정수)은?`,
+    options: ['60','70','80','90'],
+    answer: 3,
+    ex: '계산: 270 ÷ 3 = 90'
+  },
+  {
+    q: `조건: 자동차가 360km를 가는 데 6시간 걸림.\n문제: 걸린 시간(6시간)에 대한 간 거리(360km)의 비율(정수)은?`,
+    options: ['50','55','60','70'],
+    answer: 2,
+    ex: '계산: 360 ÷ 6 = 60'
+  },
+  {
+    q: `조건: 자동차가 500km를 가는 데 5시간 걸림.\n문제: 걸린 시간(5시간)에 대한 간 거리(500km)의 비율(정수)은?`,
+    options: ['80','85','90','100'],
+    answer: 3,
+    ex: '계산: 500 ÷ 5 = 100'
+  },
+  {
+    q: `조건: 자동차가 600km를 가는 데 10시간 걸림.\n문제: 걸린 시간(10시간)에 대한 간 거리(600km)의 비율(정수)은?`,
+    options: ['55','60','70','80'],
+    answer: 1,
+    ex: '계산: 600 ÷ 10 = 60'
+  },
+
+  // ========== (3) 야구 타율 문제, 10문제 ==========
+  {
+    q: `조건: 25타수 중 안타 9개.\n문제: 전체 타수 대비 안타 수의 비율(타율)을 소수로 나타내세요.`,
+    options: ['0.20','0.36','0.40','0.28'],
+    answer: 1,
+    ex: '계산: 9 ÷ 25 = 0.36'
+  },
+  {
+    q: `조건: 10타수 중 안타 3개.\n문제: 타율을 소수로 나타내세요.`,
+    options: ['0.30','0.25','0.50','0.15'],
+    answer: 0,
+    ex: '계산: 3 ÷ 10 = 0.3'
+  },
+  {
+    q: `조건: 20타수 중 안타 8개.\n문제: 타율을 소수로 나타내세요.`,
+    options: ['0.30','0.35','0.40','0.45'],
+    answer: 2,
+    ex: '계산: 8 ÷ 20 = 0.4'
+  },
+  {
+    q: `조건: 15타수 중 안타 6개.\n문제: 타율을 소수로 나타내세요.`,
+    options: ['0.35','0.40','0.20','0.45'],
+    answer: 1,
+    ex: '계산: 6 ÷ 15 = 0.4'
+  },
+  {
+    q: `조건: 12타수 중 안타 3개.\n문제: 타율을 소수로 나타내세요.`,
+    options: ['0.25','0.30','0.20','0.40'],
+    answer: 0,
+    ex: '계산: 3 ÷ 12 = 0.25'
+  },
+  {
+    q: `조건: 16타수 중 안타 4개.\n문제: 타율을 소수로 나타내세요.`,
+    options: ['0.30','0.20','0.25','0.15'],
+    answer: 2,
+    ex: '계산: 4 ÷ 16 = 0.25'
+  },
+  {
+    q: `조건: 20타수 중 안타 5개.\n문제: 타율을 소수로 나타내세요.`,
+    options: ['0.20','0.30','0.25','0.40'],
+    answer: 2,
+    ex: '계산: 5 ÷ 20 = 0.25'
+  },
+  {
+    q: `조건: 10타수 중 안타 1개.\n문제: 타율을 소수로 나타내세요.`,
+    options: ['0.05','0.30','0.25','0.10'],
+    answer: 3,
+    ex: '계산: 1 ÷ 10 = 0.1'
+  },
+  {
+    q: `조건: 30타수 중 안타 12개.\n문제: 타율을 소수로 나타내세요.`,
+    options: ['0.35','0.40','0.45','0.50'],
+    answer: 1,
+    ex: '계산: 12 ÷ 30 = 0.4'
+  },
+  {
+    q: `조건: 40타수 중 안타 10개.\n문제: 타율을 소수로 나타내세요.`,
+    options: ['0.20','0.25','0.30','0.35'],
+    answer: 1,
+    ex: '계산: 10 ÷ 40 = 0.25'
+  },
+
+  // ========== (4) 마을 넓이 대비 인구, 5문제 ==========
+  {
+    q: `조건: 어떤 마을은 땅 넓이가 5km², 인구 13,675명.\n문제: 이 마을 넓이에 대한 인구 비율(자연수)은?`,
+    options: ['2725','2850','3000','2735'],
+    answer: 3,
+    ex: '계산: 13675 ÷ 5 = 2735'
+  },
+  {
+    q: `조건: 어떤 마을은 땅 넓이가 4km², 인구 20,000명.\n문제: 이 마을 넓이에 대한 인구 비율(자연수)은?`,
+    options: ['4000','5000','6000','8000'],
+    answer: 1,
+    ex: '계산: 20000 ÷ 4 = 5000'
+  },
+  {
+    q: `조건: 어떤 마을은 땅 넓이가 6km², 인구 27,000명.\n문제: 이 마을 넓이에 대한 인구 비율(자연수)은?`,
+    options: ['4500','4600','4200','4000'],
+    answer: 0,
+    ex: '계산: 27000 ÷ 6 = 4500'
+  },
+  {
+    q: `조건: 어떤 마을은 땅 넓이가 8km², 인구 24,400명.\n문제: 이 마을 넓이에 대한 인구 비율(자연수)은?`,
+    options: ['3050','3100','2950','2800'],
+    answer: 0,
+    ex: '계산: 24400 ÷ 8 = 3050'
+  },
+  {
+    q: `조건: 어떤 마을은 땅 넓이가 7km², 인구 24,500명.\n문제: 이 마을 넓이에 대한 인구 비율(자연수)은?`,
+    options: ['3500','3600','3700','3450'],
+    answer: 0,
+    ex: '계산: 24500 ÷ 7 = 3500'
+  },
+
+  // ========== (5) 흰색·검은색 물감, 5문제 ==========
+  {
+    q: `조건: 영희는 흰색 50g+검은색 10g,\n       지훈은 흰색 60g+검은색 15g.\n문제: 누가 더 어두운 색을 만들었나? (흰 대비 검 비율이 큰 쪽)`,
+    options: ['영희','지훈','둘 다 같음','알 수 없다'],
+    answer: 1,
+    ex: '영희=0.2, 지훈=0.25 → 지훈이 더 어둠'
+  },
+  {
+    q: `조건: 민수는 흰색 40g+검은색 8g,\n       서연은 흰색 30g+검은색 9g.\n문제: 누가 더 어두운 색을 만들었나?`,
+    options: ['민수','서연','같음','모름'],
+    answer: 1,
+    ex: '민수=0.2, 서연=0.3 → 서연'
+  },
+  {
+    q: `조건: 진혁은 흰색 80g+검은색 20g,\n       상우는 흰색 90g+검은색 18g.\n문제: 누가 더 어두운 색을 만들었나?`,
+    options: ['진혁','상우','같음','모름'],
+    answer: 0,
+    ex: '진혁=0.25, 상우=0.20'
+  },
+  {
+    q: `조건: 지연은 흰색 100g+검은색 25g,\n       호영은 흰색 60g+검은색 12g.\n문제: 누가 더 어두운 색을 만들었나?`,
+    options: ['지연','호영','같음','모름'],
+    answer: 0,
+    ex: '지연=0.25, 호영=0.20'
+  },
+  {
+    q: `조건: 윤지는 흰색 60g+검은색 6g,\n       태훈은 흰색 40g+검은색 6g.\n문제: 누가 더 어두운 색을 만들었나?`,
+    options: ['윤지','태훈','같음','모름'],
+    answer: 1,
+    ex: '윤지=0.1, 태훈=0.15'
+  },
+
+  // ========== (6) 태풍 거리/시간 문제, 5문제 ==========
+  {
+    q: `조건: 어떤 해 태풍이 205m를 이동하는 데 5초가 걸림.\n문제: 이 태풍의 시간 대비 거리 비율(정수)은?`,
+    options: ['36','39','41','44'],
+    answer: 2,
+    ex: '계산: 205 ÷ 5 = 41'
+  },
+  {
+    q: `조건: 어떤 해 태풍이 210m를 이동하는 데 7초가 걸림.\n문제: 시간 대비 거리 비율(정수)은?`,
+    options: ['28','30','35','40'],
+    answer: 1,
+    ex: '계산: 210 ÷ 7 = 30'
+  },
+  {
+    q: `조건: 어떤 해 태풍이 250m를 이동하는 데 5초가 걸림.\n문제: 시간 대비 거리 비율(정수)은?`,
+    options: ['45','50','55','60'],
+    answer: 1,
+    ex: '계산: 250 ÷ 5 = 50'
+  },
+  {
+    q: `조건: 어떤 해 태풍이 360m를 이동하는 데 9초가 걸림.\n문제: 시간 대비 거리 비율(정수)은?`,
+    options: ['35','38','40','45'],
+    answer: 2,
+    ex: '계산: 360 ÷ 9 = 40'
+  },
+  {
+    q: `조건: 어떤 해 태풍이 240m를 이동하는 데 4초가 걸림.\n문제: 시간 대비 거리 비율(정수)은?`,
+    options: ['50','55','60','65'],
+    answer: 2,
+    ex: '계산: 240 ÷ 4 = 60'
+  },
+
+  // ========== (7) 조정 경기 문제, 5문제 ==========
+  {
+    q: `조건: 조정팀이 2000m를 완주하는 데 10분25초(총 625초)가 걸림.\n문제: 이 팀의 시간 대비 거리 비율(소수)은?`,
+    options: ['2.8','3.0','3.2','3.6'],
+    answer: 2,
+    ex: '계산: 2000 ÷ 625 = 3.2'
+  },
+  {
+    q: `조건: 한 팀이 1500m를 7분30초(450초)에 완주.\n문제: 시간 대비 거리 비율(소수, 한 자리)은?`,
+    options: ['2.5','3.0','3.3','3.8'],
+    answer: 2,
+    ex: '계산: 1500 ÷ 450 ≈ 3.3'
+  },
+  {
+    q: `조건: 한 팀이 2500m를 9분10초(550초)에 완주.\n문제: 시간 대비 거리 비율(소수, 한 자리)은?`,
+    options: ['3.8','4.0','4.5','4.8'],
+    answer: 2,
+    ex: '계산: ≈ 4.545 → 4.5'
+  },
+  {
+    q: `조건: 한 팀이 3000m를 12분(720초)에 완주.\n문제: 시간 대비 거리 비율(소수, 한 자리)은?`,
+    options: ['3.8','4.0','4.2','5.0'],
+    answer: 2,
+    ex: '계산: ≈ 4.17 → 4.2'
+  },
+  {
+    q: `조건: 한 팀이 1800m를 8분45초(525초)에 완주.\n문제: 시간 대비 거리 비율(소수, 한 자리)은?`,
+    options: ['3.0','3.2','3.4','3.6'],
+    answer: 2,
+    ex: '계산: ≈ 3.428 → 3.4'
+  },
+
+  // ========== (8) 버스 문제, 5문제 ==========
+  {
+    q: `조건: 가 버스는 240km를 2시간에,\n       나 버스는 345km를 3시간에 각각 주행.\n문제: 어느 버스가 더 빠른가?`,
+    options: ['가 버스','나 버스','둘 다 같다','알 수 없다'],
+    answer: 0,
+    ex: '가=120, 나=115 → 가 버스'
+  },
+  {
+    q: `조건: 가 버스는 180km를 2시간에,\n       나 버스는 300km를 3시간에 주행.\n문제: 어느 버스가 더 빠른가?`,
+    options: ['가 버스','나 버스','둘 다','모름'],
+    answer: 1,
+    ex: '가=90, 나=100 → 나 버스'
+  },
+  {
+    q: `조건: 가 버스는 480km를 4시간에,\n       나 버스는 450km를 3시간에 주행.\n문제: 어느 버스가 더 빠른가?`,
+    options: ['가 버스','나 버스','둘 다','모름'],
+    answer: 1,
+    ex: '가=120, 나=150 → 나 버스'
+  },
+  {
+    q: `조건: 가 버스는 300km를 3시간에,\n       나 버스는 400km를 5시간에 주행.\n문제: 어느 버스가 더 빠른가?`,
+    options: ['가 버스','나 버스','둘 다','모름'],
+    answer: 0,
+    ex: '가=100, 나=80 → 가 버스'
+  },
+  {
+    q: `조건: 가 버스는 180km를 2시간에,\n       나 버스는 270km를 3시간에 주행.\n문제: 어느 버스가 더 빠른가?`,
+    options: ['가 버스','나 버스','둘 다 같다','모름'],
+    answer: 2,
+    ex: '가=90, 나=90 → 동일'
+  },
+
+  // ========== (9) 매실 원액 문제, 5문제 ==========
+  {
+    q: `조건: 물에 매실 원액 320mL, 최종 주스 800mL.\n문제: 주스 대비 원액 비율(소수)은?`,
+    options: ['0.2','0.4','0.32','0.5'],
+    answer: 1,
+    ex: '계산: 320 ÷ 800 = 0.4'
+  },
+  {
+    q: `조건: 물에 매실 원액 200mL, 최종 주스 800mL.\n문제: 주스 대비 원액 비율(소수)은?`,
+    options: ['0.25','0.40','0.20','0.33'],
+    answer: 0,
+    ex: '계산: 200 ÷ 800 = 0.25'
+  },
+  {
+    q: `조건: 물에 매실 원액 300mL, 최종 주스 750mL.\n문제: 주스 대비 원액 비율(소수)은?`,
+    options: ['0.35','0.4','0.45','0.5'],
+    answer: 1,
+    ex: '계산: 300 ÷ 750 = 0.4'
+  },
+  {
+    q: `조건: 물에 매실 원액 250mL, 최종 주스 1000mL.\n문제: 주스 대비 원액 비율(소수)은?`,
+    options: ['0.2','0.3','0.25','0.4'],
+    answer: 2,
+    ex: '계산: 250 ÷ 1000 = 0.25'
+  },
+  {
+    q: `조건: 물에 매실 원액 400mL, 최종 주스 800mL.\n문제: 주스 대비 원액 비율(소수)은?`,
+    options: ['0.5','0.33','0.4','0.45'],
+    answer: 0,
+    ex: '계산: 400 ÷ 800 = 0.5'
+  }
+];
+
+// 전역 변수들
+let userName = '';
+let difficulty = '';
+let score = 0;
+let lives = 3;
+let totalTime = 0; 
+let timerInterval = null;
+let gameInterval = null;
+let currentTimeLimit = 0;
+let currentIndex = 0;
+let usedIndices = [];
+let currentAnswer = null;
+let timeLeft = 0;
+let isTimeUnlimited = false;
+
+// 난이도별 점수
+let scorePerQ = 0;
+
+// ============ 배열 셔플 ============
+function shuffleArray(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const r = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[r]] = [arr[r], arr[i]];
+  }
+}
+
+// ============ 시작 함수 ============
+function startGame(diff) {
+  userName = document.getElementById('userName').value.trim();
+  if(!userName) {
+    alert('이름을 입력해주세요!');
+    return;
+  }
+  difficulty = diff;
+  document.getElementById('start-screen').classList.add('hidden');
+  document.getElementById('quiz-screen').classList.remove('hidden');
+
+  // 난이도별 시간 & 점수
+  if(diff === 'top') {
+    currentTimeLimit = 20;
+    scorePerQ=20;
+  } else if(diff === 'high') {
+    currentTimeLimit = 30;
+    scorePerQ=15;
+  } else if(diff === 'mid') {
+    currentTimeLimit = 40;
+    scorePerQ=13;
+  } else {
+    isTimeUnlimited = true;
+    currentTimeLimit = 999999;
+    scorePerQ=10;
+  }
+
+  // 문제 셔플
+  shuffleArray(questionsData);
+
+  // 전체 시간 타이머
+  gameInterval = setInterval(()=>{
+    totalTime++;
+    document.getElementById('game-timer').textContent = totalTime;
+  },1000);
+
+  showNextProblem();
+}
+
+// ============ 문제 표출 ============
+function showNextProblem() {
+  document.getElementById('feedback').textContent = '';
+  // 에너지바 리셋
+  if(!isTimeUnlimited) {
+    document.getElementById('energy-bar-container').classList.remove('hidden');
+    timeLeft = currentTimeLimit;
+    document.getElementById('timer').textContent = timeLeft;
+    document.getElementById('energy-fill').style.width = '100%';
+    if(timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(tick, 1000);
+  } else {
+    document.getElementById('energy-bar-container').classList.add('hidden');
+  }
+
+  // 문제 중복 체크
+  if(usedIndices.length >= questionsData.length) {
+    endGame();
+    return;
+  }
+  do {
+    currentIndex = Math.floor(Math.random() * questionsData.length);
+  } while( usedIndices.includes(currentIndex) );
+  usedIndices.push(currentIndex);
+
+  let qData = questionsData[currentIndex];
+  document.getElementById('question-container').textContent = qData.q;
+
+  // 보기 섞기
+  let idxArr = [0,1,2,3];
+  shuffleArray(idxArr);
+  let optsDiv = document.getElementById('options-container');
+  optsDiv.innerHTML = '';
+  for(let i=0;i<4;i++){
+    const realIdx = idxArr[i];
+    let div = document.createElement('div');
+    div.className = 'answer-option';
+    div.innerHTML = `<label>
+      <input type="radio" name="choice" value="${realIdx}">
+      \\(${qData.options[realIdx]}\\)
+    </label>`;
+    optsDiv.appendChild(div);
+  }
+  currentAnswer = qData.answer;
+
+  // MathJax 렌더링
+  setTimeout(()=>{ MathJax.typeset(); },50);
+}
+
+// ============ 타이머(에너지바) ============
+function tick(){
+  timeLeft--;
+  if(timeLeft<0){
+    clearInterval(timerInterval);
+    timeLeft=0;
+    document.getElementById('timer').textContent = 0;
+    document.getElementById('energy-fill').style.width='0%';
+    loseChanceByTimeout();
+    return;
+  }
+  document.getElementById('timer').textContent = timeLeft;
+  let per = (timeLeft/currentTimeLimit)*100;
+  document.getElementById('energy-fill').style.width = per+'%';
+}
+
+function loseChanceByTimeout(){
+  lives--;
+  if(lives<=0){
+    lives=0;
+    document.getElementById('lives').textContent = lives;
+    endGame();
+    return;
+  }
+  document.getElementById('lives').textContent = lives;
+  showNextProblem();
+}
+
+// ============ 답안 제출 ============
+function submitAnswer(){
+  if(usedIndices.length>questionsData.length) return; // 끝
+  let chosen = document.querySelector('input[name="choice"]:checked');
+  if(!chosen){
+    alert('답을 선택하세요!');
+    return;
+  }
+  let choiceVal = parseInt(chosen.value,10);
+  let qData = questionsData[currentIndex];
+  if(timerInterval) clearInterval(timerInterval);
+
+  if(choiceVal===qData.answer){
+    score += scorePerQ;
+    document.getElementById('score').textContent = score;
+    document.getElementById('feedback').innerHTML=
+      `<span class="correct-answer">정답입니다!</span>`;
+  } else {
+    lives--;
+    document.getElementById('lives').textContent = lives;
+    document.getElementById('feedback').innerHTML=
+      `<span class="wrong-answer">틀렸습니다. 정답: ${qData.options[qData.answer]}</span>`;
+    if(lives<=0){
+      endGame();
+      return;
+    }
+  }
+  setTimeout(()=>{
+    showNextProblem();
+  },1000);
+}
+
+// ============ 게임 종료 ============
+function endGame(){
+  if(timerInterval) clearInterval(timerInterval);
+  if(gameInterval) clearInterval(gameInterval);
+
+  document.getElementById('quiz-screen').classList.add('hidden');
+  document.getElementById('end-screen').classList.remove('hidden');
+  if(lives<=0){
+    document.getElementById('end-title').textContent = "게임 오버!";
+  } else {
+    document.getElementById('end-title').textContent = "모든 문제 풀이 완료!";
+  }
+  document.getElementById('final-score').textContent = score;
+  document.getElementById('final-time').textContent = totalTime;
+}
+
+// ============ 점수 전송 ============
+function sendScore(){
+  saveData('비율이 사용되는 경우', userName, score, totalTime);
+}
+
+// ============ 서버 전송 함수 ============
+async function saveData(game, name, score, elapsedTime) {
+    const FUNCTION_URL = "https://us-central1-record-f420d.cloudfunctions.net/report";
+    const requestData = {
+        game,
+        name,
+        score: parseInt(score, 10),
+        elapsedTime: parseInt(elapsedTime, 10)
+    };
+
+    try {
+        const response = await fetch(FUNCTION_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestData)
+        });
+        const responseData = await response.json();
+
+        if (response.ok) {
+            document.getElementById('response').innerText = 
+                `성공: ${JSON.stringify(responseData, null, 2)}`;
+        } else {
+            document.getElementById('response').innerText = 
+                `오류: ${JSON.stringify(responseData, null, 2)}`;
+        }
+    } catch (error) {
+        console.error('요청 실패:', error);
+        document.getElementById('response').innerText = 
+            `네트워크 오류: ${error.message}`;
+    }
+}
+</script>
+</body>
+</html>
